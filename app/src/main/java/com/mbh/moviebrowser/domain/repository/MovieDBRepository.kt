@@ -7,5 +7,5 @@ interface MovieDBRepository {
 
     suspend fun getPopularMovies(): Resource<List<Movie>>
 
-    suspend fun getMovieById(): Resource<Movie>
+    suspend fun getMovieById(id: Long): Resource<Movie>
 }

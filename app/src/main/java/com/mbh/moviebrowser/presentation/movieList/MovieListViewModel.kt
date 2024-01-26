@@ -6,8 +6,10 @@ import com.mbh.moviebrowser.domain.model.Movie
 import com.mbh.moviebrowser.domain.repository.MovieDBRepository
 import com.mbh.moviebrowser.domain.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -26,8 +28,15 @@ class MovieListViewModel @Inject constructor(
         val errorMessage: String = ""
     )
 
+    private val _uiEvent = Channel<UiEvent>()
+    val uiEvent = _uiEvent.receiveAsFlow()
+
+    sealed class UiEvent {
+        data class OnItemClick(val movieId: Long) : UiEvent()
+    }
+
     sealed class OnEvent {
-        data class OnMovieItemClick(val movieId: Long): OnEvent()
+        data class OnMovieItemClick(val movieId: Long) : OnEvent()
     }
 
     init {
@@ -38,7 +47,7 @@ class MovieListViewModel @Inject constructor(
                 )
             }
 
-            when(val result = movieRepository.getPopularMovies()){
+            when (val result = movieRepository.getPopularMovies()) {
                 is Resource.Success -> {
                     _uiState.update {
                         it.copy(
@@ -47,6 +56,7 @@ class MovieListViewModel @Inject constructor(
                         )
                     }
                 }
+
                 is Resource.Error -> {
                     _uiState.update {
                         it.copy(
@@ -59,11 +69,12 @@ class MovieListViewModel @Inject constructor(
         }
     }
 
-    fun onEvent(event: OnEvent){
-        when(event){
-            is OnEvent.OnMovieItemClick -> {
-
+    fun onEvent(event: OnEvent) {
+        when (event) {
+            is OnEvent.OnMovieItemClick -> viewModelScope.launch {
+                _uiEvent.send(UiEvent.OnItemClick(event.movieId))
             }
+
         }
     }
 }

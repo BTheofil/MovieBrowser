@@ -5,10 +5,9 @@ import com.mbh.moviebrowser.data.data_source.MovieDBApiSource
 import com.mbh.moviebrowser.data.error.GenreNetworkCallError
 import com.mbh.moviebrowser.data.error.MovieNetworkCallError
 import com.mbh.moviebrowser.data.mapper.GenresDtoToGenre
-import com.mbh.moviebrowser.data.mapper.MovieDtoToMovie
 import com.mbh.moviebrowser.domain.model.Genre
 import com.mbh.moviebrowser.domain.model.Movie
-import com.mbh.moviebrowser.domain.model.ResultMovie
+import com.mbh.moviebrowser.domain.model.dto.MovieDto
 import com.mbh.moviebrowser.domain.repository.MovieDBRepository
 import com.mbh.moviebrowser.domain.util.Resource
 import javax.inject.Inject
@@ -20,34 +19,19 @@ class MovieDBRepositoryImpl @Inject constructor(
     override suspend fun getPopularMovies(): Resource<List<Movie>> {
         return try {
             val genreList = getGenreList()
-            val resultList = getResultMovieList()
+            val result = api.getPopularMovies()
 
-            val mappedMovies = resultList.map { resultMovie ->
-                val genreListNames = mutableListOf<String>()
-
-                resultMovie.genre_ids.forEach {
-                    genreList.forEach { genre ->
-                        if (it == genre.id) {
-                            genreListNames.add(genre.name)
-                        }
+            if (result.isSuccessful) {
+                Resource.Success(
+                    data = result.body()!!.results.map { resultMovie ->
+                        convertResultMovieAndDecodeGenres(resultMovie, genreList)
                     }
-                }
-
-                Movie(
-                    id = resultMovie.id.toLong(),
-                    title = resultMovie.title,
-                    genres = genreListNames,
-                    overview = resultMovie.overview,
-                    coverUrl = resultMovie.poster_path,
-                    rating = resultMovie.vote_average.toFloat(),
-                    isFavorite = false
                 )
-
+            } else {
+                Resource.Error(
+                    message = "Unexpected error"
+                )
             }
-
-            Resource.Success(
-                data = mappedMovies
-            )
         } catch (e: GenreNetworkCallError) {
             Log.e("Movie genre repository", e.message.toString())
             Resource.Error(
@@ -66,15 +50,59 @@ class MovieDBRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getMovieById(): Resource<Movie> {
-        TODO("Not yet implemented")
+    override suspend fun getMovieById(id: Long): Resource<Movie> {
+        return try {
+            val genreList = getGenreList()
+            val movieDetailsDto = getMovieResultById(id)
+
+            Resource.Success(
+                data = convertResultMovieAndDecodeGenres(movieDetailsDto, genreList)
+            )
+        } catch (e: Exception) {
+            Log.e("Movie id repository", e.message.toString())
+            Resource.Error(
+                message = "Repository error: " + e.message.toString()
+            )
+        }
     }
 
-    private suspend fun getResultMovieList(): List<ResultMovie> {
-        val result = api.getPopularMovies()
+    private fun convertResultMovieAndDecodeGenres(
+        movieDto: MovieDto,
+        genreList: List<Genre>
+    ): Movie = Movie(
+        id = movieDto.id.toLong(),
+        title = movieDto.title,
+        genres = when (movieDto) {
+            is MovieDto.MovieDetails -> {
+                movieDto.genres.map { it.id }.joinToString(" ") { genreId ->
+                    genreList.find { it.id == genreId }?.name.orEmpty()
+                }
+            }
+
+            is MovieDto.MovieItem -> {
+                movieDto.genre_ids.joinToString(" ") { genreId ->
+                    genreList.find { it.id == genreId }?.name.orEmpty()
+                }
+            }
+        },
+        overview = movieDto.overview,
+        coverUrl = "https://image.tmdb.org/t/p/w500" + movieDto.poster_path,
+        rating = movieDto.vote_average.toFloat(),
+        isFavorite = false
+    )
+
+    private suspend fun getMovieResultById(id: Long): MovieDto.MovieDetails {
+        val result = api.getMovieById(movieId = id)
 
         return if (result.isSuccessful) {
-            MovieDtoToMovie().invoke(result.body()!!)
+            MovieDto.MovieDetails(
+                genres = result.body()!!.genres,
+                id = result.body()!!.id,
+                overview = result.body()!!.overview,
+                poster_path = result.body()!!.poster_path,
+                title = result.body()!!.title,
+                vote_average = result.body()!!.vote_average
+            )
         } else {
             throw MovieNetworkCallError()
         }

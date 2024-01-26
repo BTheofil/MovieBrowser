@@ -17,16 +17,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 
 @Composable
 fun MovieDetailsScreen(
-    viewModel: MovieDetailsViewModel = viewModel()
+    viewModel: MovieDetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -76,13 +75,13 @@ fun MovieDetailsScreenUI(
         Text(
             text = uiState.movie.title,
             style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.primary,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = uiState.movie.overview ?: "",
             style = MaterialTheme.typography.bodyLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.primary,
         )
     }
 }
