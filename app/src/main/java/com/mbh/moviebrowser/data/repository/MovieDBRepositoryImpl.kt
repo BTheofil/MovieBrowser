@@ -9,19 +9,33 @@ import com.mbh.moviebrowser.domain.model.Genre
 import com.mbh.moviebrowser.domain.model.Movie
 import com.mbh.moviebrowser.domain.model.dto.MovieDto
 import com.mbh.moviebrowser.domain.repository.MovieDBRepository
-import com.mbh.moviebrowser.domain.util.Resource
+import com.mbh.moviebrowser.common.Resource
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
 class MovieDBRepositoryImpl @Inject constructor(
-    private val api: MovieDBApiSource
+    private val api: MovieDBApiSource,
 ) : MovieDBRepository {
 
-    override suspend fun getPopularMovies(): Resource<List<Movie>> {
-        return try {
+    private val _movieList = MutableStateFlow<Resource<List<Movie>>>(Resource.Empty())
+    override val movieList: StateFlow<Resource<List<Movie>>>
+        get() = _movieList
+
+    override suspend fun getPopularMovies() {
+        try {
             val genreList = getGenreList()
             val result = api.getPopularMovies()
 
             if (result.isSuccessful) {
+                _movieList.emit(
+                    Resource.Success(
+                        data = result.body()!!.results.map { resultMovie ->
+                            convertResultMovieAndDecodeGenres(resultMovie, genreList)
+                        }
+                    )
+                )
+
                 Resource.Success(
                     data = result.body()!!.results.map { resultMovie ->
                         convertResultMovieAndDecodeGenres(resultMovie, genreList)
@@ -50,20 +64,20 @@ class MovieDBRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getMovieById(id: Long): Resource<Movie> {
-        return try {
-            val genreList = getGenreList()
-            val movieDetailsDto = getMovieResultById(id)
+    override fun addFavoriteMovie(id: Long) {
+        val currentMovies = _movieList.value.data.orEmpty()
 
-            Resource.Success(
-                data = convertResultMovieAndDecodeGenres(movieDetailsDto, genreList)
-            )
-        } catch (e: Exception) {
-            Log.e("Movie id repository", e.message.toString())
-            Resource.Error(
-                message = "Repository error: " + e.message.toString()
-            )
+        val result = currentMovies.map {
+            if (it.id == id){
+                it.copy(
+                    isFavorite = !it.isFavorite
+                )
+            } else {
+                it
+            }
         }
+
+        _movieList.value = Resource.Success(result)
     }
 
     private fun convertResultMovieAndDecodeGenres(
@@ -90,23 +104,6 @@ class MovieDBRepositoryImpl @Inject constructor(
         rating = movieDto.vote_average.toFloat(),
         isFavorite = false
     )
-
-    private suspend fun getMovieResultById(id: Long): MovieDto.MovieDetails {
-        val result = api.getMovieById(movieId = id)
-
-        return if (result.isSuccessful) {
-            MovieDto.MovieDetails(
-                genres = result.body()!!.genres,
-                id = result.body()!!.id,
-                overview = result.body()!!.overview,
-                poster_path = result.body()!!.poster_path,
-                title = result.body()!!.title,
-                vote_average = result.body()!!.vote_average
-            )
-        } else {
-            throw MovieNetworkCallError()
-        }
-    }
 
     private suspend fun getGenreList(): List<Genre> {
         val result = api.getGenreIds()

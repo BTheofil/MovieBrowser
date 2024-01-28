@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mbh.moviebrowser.domain.model.Movie
 import com.mbh.moviebrowser.domain.repository.MovieDBRepository
-import com.mbh.moviebrowser.domain.util.Resource
+import com.mbh.moviebrowser.common.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,20 +31,22 @@ class MovieDetailsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val movieId: Long = checkNotNull(savedStateHandle["movieId"])
-            when (val movie = repository.getMovieById(movieId)) {
-                is Resource.Error -> _uiState.update {
-                    it.copy(
-                        errorMessage = movie.message!!
-                    )
-                }
 
-                is Resource.Success -> _uiState.update {
-                    it.copy(
-                        movie = movie.data
-                    )
+            repository.movieList.collect { resource ->
+                when (resource) {
+                    is Resource.Empty -> {}
+                    is Resource.Error -> {}
+                    is Resource.Success -> {
+                        _uiState.update { state ->
+                            state.copy(
+                                movie = resource.data?.first {
+                                    it.id == movieId
+                                }
+                            )
+                        }
+                    }
                 }
             }
-
         }
     }
 
@@ -55,7 +57,7 @@ class MovieDetailsViewModel @Inject constructor(
     fun onEvent(event: OnEvent) {
         when (event) {
             OnEvent.FavoriteButtonClick -> {
-
+                repository.addFavoriteMovie(uiState.value.movie!!.id)
             }
         }
     }

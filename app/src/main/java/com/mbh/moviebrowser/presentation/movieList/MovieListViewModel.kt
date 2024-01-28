@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mbh.moviebrowser.domain.model.Movie
 import com.mbh.moviebrowser.domain.repository.MovieDBRepository
-import com.mbh.moviebrowser.domain.util.Resource
+import com.mbh.moviebrowser.common.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,28 +41,19 @@ class MovieListViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isLoading = true
-                )
-            }
-
-            when (val result = movieRepository.getPopularMovies()) {
-                is Resource.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            movies = result.data!!,
-                            isLoading = false
-                        )
-                    }
-                }
-
-                is Resource.Error -> {
-                    _uiState.update {
-                        it.copy(
-                            errorMessage = result.message!!,
-                            isLoading = false
-                        )
+            movieRepository.getPopularMovies()
+        }
+        viewModelScope.launch {
+            movieRepository.movieList.collect{ resource ->
+                when(resource){
+                    is Resource.Empty -> {}
+                    is Resource.Error -> {}
+                    is Resource.Success -> {
+                        _uiState.update {
+                            it.copy(
+                                movies = resource.data?: emptyList()
+                            )
+                        }
                     }
                 }
             }
@@ -74,7 +65,6 @@ class MovieListViewModel @Inject constructor(
             is OnEvent.OnMovieItemClick -> viewModelScope.launch {
                 _uiEvent.send(UiEvent.OnItemClick(event.movieId))
             }
-
         }
     }
 }
