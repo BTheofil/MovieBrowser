@@ -15,7 +15,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MovieDetailsViewModel @Inject constructor(
-    private val repository: MovieDBRepository,
+    private val movieRepository: MovieDBRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -32,7 +32,7 @@ class MovieDetailsViewModel @Inject constructor(
         viewModelScope.launch {
             val movieId: Long = checkNotNull(savedStateHandle["movieId"])
 
-            repository.movieList.collect { resource ->
+            movieRepository.movieList.collect { resource ->
                 when (resource) {
                     is Resource.Empty -> {}
                     is Resource.Error -> {}
@@ -57,7 +57,7 @@ class MovieDetailsViewModel @Inject constructor(
     fun onEvent(event: OnEvent) {
         when (event) {
             OnEvent.FavoriteButtonClick -> {
-                repository.addFavoriteMovie(uiState.value.movie!!.id)
+                movieRepository.addFavoriteMovie(uiState.value.movie!!.id)
             }
         }
     }
